@@ -67,7 +67,7 @@
 
 ;; extract email address from mu4e contact
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address (add)
-  "Extract email address from mu4e contact which may use one of two formats: 'email' or 'name <email>'."
+  "Extract email address from mu4e contact ADD which may use one of two formats: 'email' or 'name <email>'."
   (save-match-data
 	(if (string-match "<\\([^>]+\\)>" add)
 		(match-string 1 add)
@@ -75,7 +75,7 @@
 
 ;; returns name if mu4e-contact is of form 'name <email>'
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact (add)
-  "Extract name from a mu4e-contact if it of the form 'name <email>', return `nil' if this is only an email address."
+  "Extract name from a mu4e-contact ADD if it of the form 'name <email>', return nil if this is only an email address."
   (save-match-data
 	(if (string-match "\\([^<]+\\)<\\([^>]+\\)>" add)
 		(string-trim (match-string 1 add))
@@ -83,7 +83,7 @@
 
 ;; return name or "" if there is no name
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-or-emtpy-string (add)
-  "Extract name from a mu4e-contact if it of the form 'name <email>', return empty string if this is only an email address."
+  "Extract name from a mu4e-contact ADD if it of the form 'name <email>', return empty string if this is only an email address."
   (let ((name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact add)))
 	(if name
 		name
@@ -91,7 +91,7 @@
 
 ;; find all email addressses for mu4e person (TODO do smarter matching)
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-get-all-email-addresses-for-person (add)
-  "Find all emails from a given mu4e-contact. If the contact is of the form 'name <email>', then also return emails send from contacts with the same name but different email address."
+  "Find all emails from a given mu4e-contact ADD.  If the contact is of the form 'name <email>', then also return emails send from contacts with the same name but different email address."
   (let ((person (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact add))
 		(emails (list (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))))
 	(mu4e~request-contacts-maybe)
@@ -101,18 +101,18 @@
 
 ;; create query for returnning all emails send from person x (retrieving all email addressed for person from mu4e~contacts)
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person (add)
-  "return a mu4e query to retrieve all emails send from a person."
+  "Return a mu4e query to retrieve all emails send from a person ADD."
   (concat "(maildir:\"/lordpretzel-gmail/[lordpretzel].All Mail\" OR maildir:\"/bglavic-iit/[bglavic].All Mail\" OR maildir:/bglavic-iit/INBOX OR maildir:/lordpretzel-gmail/INBOX) AND ("
 		  (mapconcat (lambda (x) (concat "from:" x)) (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-email-addresses-for-person add) " OR ") ")"))
 
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-is-org-from-address (add)
-  "return * if `add' ends in # (an org-contact contact) and space otherwise"
+  "Return * if ADD ends in # (an org-contact contact) and space otherwise."
   (if (string-match "[#]$" add)
 	  "*"
 	"-"))
 
 (defun counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb ()
-  "Creates a hash-table storing contacts from mu4e and bbdb for address book and email address look-ups."
+  "Create a hash-table storing contacts from mu4e and bbdb for address book and email address look-ups."
   ;; create ht if it does not exist
   (when (eq counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended nil)
 	(setq counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended (ht-create 'equal)))
@@ -142,17 +142,9 @@
 					 (if (string= (nth 2 l) (nth 2 r))
 						 (string-lessp (nth 4 l) (nth 4 r))
 					   (or (not (nth 2 r))
-						   (string-lessp (nth 2 l) (nth 2 r)))
-					   )
+						   (string-lessp (nth 2 l) (nth 2 r))))
 				   (or (not (nth 1 r))
-					   (string-lessp (nth 1 l) (nth 1 r))
-					   )
-				   )
-				 )
-			 )
-
-		   )
-		  )
+					   (string-lessp (nth 1 l) (nth 1 r))))))))
 	;; insert mu4e contacts
 	(mapc (lambda (c)
 			(let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address c))
@@ -164,10 +156,8 @@
 		  (ht-keys mu4e~contacts))
 	;; put in hashtable for mu4e
 	(mapc (lambda (c)
-			(puthash (plist-get c :full-contact) (plist-get c :pos) counsel-mu4e-and-bbdb-addresses-mu4e-contacts)
-			)
-		  (ht-values counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
-		  )
+			(puthash (plist-get c :full-contact) (plist-get c :pos) counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
+		  (ht-values counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))
 	;; create list for counsel-bbdb
 	(setq counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
 		  (cl-union
@@ -181,13 +171,7 @@
 					   `(,fullcontact ,name nil nil ,email nil)
 					   ))
 				   (--filter (string= (plist-get (cadr it) :contact-from) "mu4e")
-							 (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
-							 )
-				   )
-		   )
-		  )
-	)
-  )
+							 (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))))))
 
 (defun counsel-mu4e-and-bbdb-full-contacts-sorted ()
   "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
@@ -234,59 +218,43 @@
 			:history 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history
 			:action '(1
 					  ("a" (lambda (add)
-							 (mu4e-headers-search (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person add))
-							 )
+							 (mu4e-headers-search (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person add)))
 					   "show all emails from all email addresses for this person")
 					  ("i" (lambda (add)
 							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
-							   (insert nohash)
-							   )
-							 ) "insert")
+							   (insert nohash)))
+                       "insert")
 					  ("w" (lambda (add)
 							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
-							   (kill-new nohash)
-							   )
-							 ) "copy to killring")
+							   (kill-new nohash)))
+                       "copy to killring")
 					  ("I" (lambda (add)
-							 (insert (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
-							 ) "insert email address only")
+							 (insert (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+                       "insert email address only")
 					  ("W" (lambda (add)
-							 (kill-new (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
-							 ) "copy to email address only to killring")
+							 (kill-new (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+                       "copy to email address only to killring")
 					  ("l" (lambda (add)
 							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
 								    (query (concat "from:" email " OR " "to:" email)))
-							   (mu4e-headers-search query)
-							   )
-							 )
+							   (mu4e-headers-search query)))
 					   "show email from/to this person")
 					  ("f" (lambda (add)
 							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
 								    (query (concat "from:" email)))
-							   (mu4e-headers-search query)
-							   )
-							 )
+							   (mu4e-headers-search query)))
 					   "show emails from this person")
 					  ("c" (lambda (add)
 							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
 							   (mu4e~compose-mail email))
-							 (mu4e-headers-search query)
-							 )
+							 (mu4e-headers-search query))
 					   "send an email to person")
 					  ("b" (lambda (add)
 							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
 							   ;; 4th entry is the email address (counsel-bbdb format)
-							   (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action `(nil nil nil nil ,email))
-							   )
-							 )
-					   "open record in BBDB"
-					   )
-					  )
-			:caller 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts
-			)
-  )
-
-
+							   (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action `(nil nil nil nil ,email))))
+					   "open record in BBDB"))
+			:caller 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
 
 ;;;###autoload
 (defun counsel-mu4e-and-bbdb-addresses-setup ()
@@ -294,16 +262,14 @@
   (advice-tools/advice-add-if-def
    'mu4e~compose-complete-handler
    :override
-   'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler)
-  )
+   'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler))
 
 ;;;###autoload
 (defun counsel-mu4e-and-bbdb-addresses-remove ()
   "Advice mu4e contacts."
   (advice-tools/advice-remove-if-def
    'mu4e~compose-complete-handler
-   'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler)
-  )
+   'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler))
 
 (provide 'counsel-mu4e-and-bbdb-addresses)
 ;;; counsel-mu4e-and-bbdb-addresses.el ends here
