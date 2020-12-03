@@ -31,12 +31,15 @@
 
 ;; ********************************************************************************
 ;; IMPORTS
-(require 'advice-tools)
+(require 'subr-x)
 (require 'cl-lib)
+(require 'advice-tools)
 (require 'counsel-bbdb)
 (require 'bbdb)
 (require 'dash)
 (require 'ht)
+(require 'mu4e)
+
 
 ;; ********************************************************************************
 ;; CUSTOM
@@ -132,7 +135,7 @@
 				   (name (format "%s %s" (nth 2 c) (nth 1 c)))
 				   (fullcontact (format "%s <%s>" name email))
 				   (contact `(:full-contact ,fullcontact :name ,name :contact-from "bbdb" :pos ,pos)))
-			  (incf pos)
+			  (cl-incf pos)
 			  (puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))
 		  (sort
 		   (--filter (not (string-prefix-p "@Conflict" (nth 0 it))) (copy-sequence counsel-bbdb-contacts))
@@ -151,7 +154,7 @@
 				   (name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact c))
 				   (contact `(:full-contact ,c :name ,name :contact-from "mu4e" :pos ,pos)))
 			  (unless (ht-contains-p counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended email)
-				(incf pos)
+				(cl-incf pos)
 				(puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))))
 		  (ht-keys mu4e~contacts))
 	;; put in hashtable for mu4e
@@ -173,6 +176,7 @@
 				   (--filter (string= (plist-get (cadr it) :contact-from) "mu4e")
 							 (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))))))
 
+;;;###autoload
 (defun counsel-mu4e-and-bbdb-full-contacts-sorted ()
   "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
   (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
@@ -210,6 +214,7 @@
 	  (cycle-sort-function   . identity)))))
 
 ;; searches through contacts with ivy
+;;;###autoload
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-contacts ()
   "Select a contact from mu4e or BBDB via counsel.  Default action is to show emails from the selected contact."
   (interactive)
