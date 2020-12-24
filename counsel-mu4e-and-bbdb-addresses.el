@@ -280,7 +280,7 @@
   "Find all emails from a given mu4e-contact ADD.  If the contact is of the form 'name <email>', then also return emails send from contacts with the same name but different email address."
   (let ((person (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact add))
 		(emails (list (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))))
-	(mu4e~request-contacts-maybe)
+	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts)
 	(when person
 	  (setq emails (append emails (cl-remove-duplicates (mapcar (lambda (a) (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address a)) (all-completions person mu4e~contacts))))))
 	emails))
@@ -297,6 +297,19 @@
 	  "*"
 	"-"))
 
+(defun counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts ()
+  (unless mu4e~contacts
+	(mu4e~request-contacts-maybe)
+	(let ((prevcount 0))
+	  (while (not mu4e~contacts)
+            (sleep-for 0 100)	    
+	    )
+            (sleep-for 0 100)	   
+	  ;; this is async, so we have to poll
+      (while (not (eq (hash-table-count mu4e~contacts) prevcount))
+        (sleep-for 0 100)
+        (setq prevcount (hash-table-count mu4e~contacts))))))
+
 (defun counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb ()
   "Create a hash-table storing contacts from mu4e and bbdb for address book and email address look-ups."
   ;; create ht if it does not exist
@@ -308,7 +321,7 @@
   (when (eq counsel-bbdb-contacts nil)
 	(counsel-bbdb-reload))
   (unless mu4e~contacts
-	(mu4e~request-contacts-maybe))
+	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts))
   (let ((pos 1)
 		;;(bbdb-maxpos (length counsel-bbdb-contacts))
         )
@@ -447,6 +460,7 @@
 ;;;###autoload
 (defun counsel-mu4e-and-bbdb-addresses-setup ()
   "Advice mu4e contacts."
+  (require 'counsel-bbdb)
   (advice-tools/advice-add-if-def
    'mu4e~compose-complete-handler
    :override
