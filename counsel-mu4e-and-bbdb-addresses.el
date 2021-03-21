@@ -47,8 +47,7 @@
   t
   "Use only primary email address for persons when expanding all email addresses for a group?."
   :group 'counsel-mu4e-and-bbdb-addresses
-  :type 'boolean
-  )
+  :type 'boolean)
 
 ;; ********************************************************************************
 ;; VARIABLES
@@ -62,8 +61,7 @@
   "Replaces `mu4e~contacts'.")
 
 (defvar counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts nil
-  "Extends `counsel-bbdb-contacts'."
-  )
+  "Extends `counsel-bbdb-contacts'.")
 
 ;; ********************************************************************************
 ;; FUNCTIONS
@@ -90,14 +88,34 @@
         (string-trim (match-string 2 entry))
       "")))
 
+(defun counsel-mu4e-and-bbdb-addresses-prepend-comma ()
+  "Insert a comma before the current position unless it is an empty to/bcc/cc prefix or there already is a comma."
+  (let (match
+        insert-comma-point)
+    (save-excursion
+      (re-search-backward "\\([^[:space:]]\\)[[:space:]]*")
+      (setq match (match-string 1))
+      (when (not (or (string-equal match ":") (string-equal match ",")))
+        (setq insert-comma-point (1+ (match-beginning 1)))))
+    (when insert-comma-point
+      (goto-char insert-comma-point)
+      (insert ", "))))
+
 ;; counsel-bbdb insert mail
-(defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-insert-email (r &optional append-comma)
-  "Function to insert email address R selected from counsel-bbdb.  If APPEND-COMMA then append a comma."
+(defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-insert-email (r &optional prepend-comma append-comma)
+  "Function to insert email address R selected from counsel-bbdb.
+
+If APPEND-COMMA / PREPEND-COMMA then append / prepend a comma.
+If this is the first email address in a to/cc/bcc field or there
+already is a comma then do not prepend."
   (interactive)
   (let* ((points (bounds-of-thing-at-point 'symbol)))
-    (when points (delete-region (car points) (cdr points))))
-  (counsel-bbdb-insert-one-mail-address r append-comma)
-  )
+    (when points
+      (delete-region (car points) (cdr points))))
+  ;; prepend "," if necessary
+  (when prepend-comma
+    (counsel-mu4e-and-bbdb-addresses-prepend-comma))
+  (counsel-bbdb-insert-one-mail-address r append-comma))
 
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action (r)
   "Open a person `R` selected in counsel-bbdb in BBDB."
@@ -110,21 +128,13 @@
       (bbdb-display-records (bbdb-search (bbdb-records)
                                          :bool 'and
                                          :mail mail
-                                         :name-lf family-name)
-                            )
-      )
+                                         :name-lf family-name)))
     (when (and family-name (not mail))
       (bbdb-display-records (bbdb-search (bbdb-records)
-                                         :name-lf family-name)
-                            )
-      )
+                                         :name-lf family-name)))
     (when (and (not family-name) mail)
       (bbdb-display-records (bbdb-search (bbdb-records)
-                                         :mail mail)
-                            )
-      )
-    )
-  )
+                                         :mail mail)))))
 
 ;; add receipient to TO , CC, or BCC with counsel-bbdb completion
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-add (&optional where)
@@ -134,19 +144,13 @@
                    (intern (ivy-read "Add to: "
                                      '("to" "cc" "bcc")
                                      :require-match t
-                                     :preselect "to"
-                                     ))
-                   )
-               ))
+                                     :preselect "to")))))
     (pcase where
       ('to (message-goto-to))
       ('cc (message-goto-cc))
       ('bcc (message-goto-bcc))
-      (_ (error "Only to, cc, bcc are allowed options for inserting receipient"))
-      )
-    )
-  (counsel-bbdb-complete-mail t)
-  )
+      (_ (error "Only to, cc, bcc are allowed options for inserting receipient"))))
+  (counsel-bbdb-complete-mail t))
 
 ;; replacement functions for counsel-bbdb
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-counsel-bbdb-complete-mail (&optional append-comma)
@@ -158,9 +162,7 @@
             counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
             :initial-input (or (thing-at-point 'symbol) "")
             :caller 'counsel-bbdb-complete-mail
-            :action (lambda (r) (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-insert-email r append-comma))
-            )
-  )
+            :action (lambda (r) (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-insert-email r t append-comma))))
 
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb ()
   "Lookup people in BBDB."
@@ -174,10 +176,7 @@
             :caller 'counsel-bbdb-complete-mail
             :action '(1
                       ("b" lordpretzel/counsel-bbdb-open-in-bbdb-action "open in BBDB")
-                      ("r" counsel-bbdb-reload "reload from BBDB file")
-                      )
-            )
-  )
+                      ("r" counsel-bbdb-reload "reload from BBDB file"))))
 
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias ()
   "Insert multiple mail address in alias/group."
@@ -187,22 +186,20 @@
   ;; We just need filter the `counsel-bbdb-contacts' by selected alias
   (let* ((alias (ivy-read "Alias: "
                           counsel-bbdb-mail-alias-list
-                          :caller 'counsel-bbdb-expand-mail-alias
-                          ))
-         (names nil)
-         )
+                          :caller 'counsel-bbdb-expand-mail-alias))
+         (names nil))
     (when alias
+      (counsel-mu4e-and-bbdb-addresses-prepend-comma)
       (dolist (r counsel-bbdb-contacts)
         (let* ((r-alias (nth 4 (cdr r)))
-               (name (concat (nth 1 (cdr r)) (nth 2 (cdr r))))
-               )
+               (name (concat (nth 1 (cdr r)) (nth 2 (cdr r)))))
           (when (and r-alias
                      (string-match-p (format "%s\\(,\\| *$\\)" alias) r-alias))
             (unless (member name names)
               (counsel-bbdb-insert-one-mail-address r t)
               (push name names)
-              (message "%s names" names)
-              )))))))
+              (message "%s names" names)))))
+      (replace-regexp ",[[:space:]]*$" "" nil (line-beginning-position) (line-end-position)))))
 
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload ()
   "Load contacts from `bbdb-file'."
@@ -302,9 +299,8 @@
 	(mu4e~request-contacts-maybe)
 	(let ((prevcount 0))
 	  (while (not mu4e~contacts)
-            (sleep-for 0 100)	    
-	    )
-            (sleep-for 0 100)	   
+        (sleep-for 0 100)	    )
+      (sleep-for 0 100)
 	  ;; this is async, so we have to poll
       (while (not (eq (hash-table-count mu4e~contacts) prevcount))
         (sleep-for 0 100)
@@ -323,200 +319,196 @@
   (unless mu4e~contacts
 	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts))
   (let ((pos 1)
-		;;(bbdb-maxpos (length counsel-bbdb-contacts))
-        )
-	;; insert bbdb contacts
-	(mapc (lambda (c)
-			(let* ((email (nth 4 c))
-				   (name (format "%s %s" (nth 2 c) (nth 1 c)))
-				   (fullcontact (format "%s <%s>" name email))
-				   (contact `(:full-contact ,fullcontact :name ,name :contact-from "bbdb" :pos ,pos)))
-			  (cl-incf pos)
-			  (puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))
-		  (sort
-		   (--filter (not (string-prefix-p "@Conflict" (nth 0 it))) (copy-sequence counsel-bbdb-contacts))
-		   (lambda (l r)
-			 (or (and (nth 1 r) (string-prefix-p (nth 1 r) "@"))
-				 (if (string= (nth 1 l) (nth 1 r))
-					 (if (string= (nth 2 l) (nth 2 r))
-						 (string-lessp (nth 4 l) (nth 4 r))
-					   (or (not (nth 2 r))
-						   (string-lessp (nth 2 l) (nth 2 r))))
-				   (or (not (nth 1 r))
-					   (string-lessp (nth 1 l) (nth 1 r))))))))
-	;; insert mu4e contacts
-	(mapc (lambda (c)
-			(let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address c))
-				   (name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact c))
-				   (contact `(:full-contact ,c :name ,name :contact-from "mu4e" :pos ,pos)))
-			  (unless (ht-contains-p counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended email)
-				(cl-incf pos)
-				(puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))))
-		  (ht-keys mu4e~contacts))
-	;; put in hashtable for mu4e
-	(mapc (lambda (c)
-			(puthash (plist-get c :full-contact) (plist-get c :pos) counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
-		  (ht-values counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))
-	;; create list for counsel-bbdb
-	(setq counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
-		  (cl-union
-		   counsel-bbdb-contacts
-		   (mapcar (lambda (c)
-					 (let* ((nameemail (replace-regexp-in-string "[>]" "" (replace-regexp-in-string " [<]" ":" (plist-get (cadr c) :full-contact))))
-							(name  (plist-get (cadr c) :name))
-							(email (car c))
-							(fullcontact (concat nameemail " => MU4E"))
-							)
-					   `(,fullcontact ,name nil nil ,email nil)
-					   ))
-				   (--filter (string= (plist-get (cadr it) :contact-from) "mu4e")
-							 (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))))))
+		;;(bbdb-maxpos (length counsel-bbdb-contacts)))
+	    ;; insert bbdb contacts
+	    (mapc (lambda (c)
+			    (let* ((email (nth 4 c))
+				       (name (format "%s %s" (nth 2 c) (nth 1 c)))
+				       (fullcontact (format "%s <%s>" name email))
+				       (contact `(:full-contact ,fullcontact :name ,name :contact-from "bbdb" :pos ,pos)))
+			      (cl-incf pos)
+			      (puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))
+		      (sort
+		       (--filter (not (string-prefix-p "@Conflict" (nth 0 it))) (copy-sequence counsel-bbdb-contacts))
+		       (lambda (l r)
+			     (or (and (nth 1 r) (string-prefix-p (nth 1 r) "@"))
+				     (if (string= (nth 1 l) (nth 1 r))
+					     (if (string= (nth 2 l) (nth 2 r))
+						     (string-lessp (nth 4 l) (nth 4 r))
+					       (or (not (nth 2 r))
+						       (string-lessp (nth 2 l) (nth 2 r))))
+				       (or (not (nth 1 r))
+					       (string-lessp (nth 1 l) (nth 1 r))))))))
+	    ;; insert mu4e contacts
+	    (mapc (lambda (c)
+			    (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address c))
+				       (name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact c))
+				       (contact `(:full-contact ,c :name ,name :contact-from "mu4e" :pos ,pos)))
+			      (unless (ht-contains-p counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended email)
+				    (cl-incf pos)
+				    (puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))))
+		      (ht-keys mu4e~contacts))
+	    ;; put in hashtable for mu4e
+	    (mapc (lambda (c)
+			    (puthash (plist-get c :full-contact) (plist-get c :pos) counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
+		      (ht-values counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))
+	    ;; create list for counsel-bbdb
+	    (setq counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
+		      (cl-union
+		       counsel-bbdb-contacts
+		       (mapcar (lambda (c)
+					     (let* ((nameemail (replace-regexp-in-string "[>]" "" (replace-regexp-in-string " [<]" ":" (plist-get (cadr c) :full-contact))))
+							    (name  (plist-get (cadr c) :name))
+							    (email (car c))
+							    (fullcontact (concat nameemail " => MU4E")))
+					       `(,fullcontact ,name nil nil ,email nil)))
+				       (--filter (string= (plist-get (cadr it) :contact-from) "mu4e")
+							     (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))))))
 
 ;;;###autoload
-(defun counsel-mu4e-and-bbdb-full-contacts-sorted ()
-  "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
-  (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
-  (sort (ht-map (lambda (e c)
-				  (propertize (plist-get c :full-contact) :email e :pos (plist-get c :pos)))
-				counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
-		(lambda (l r) (<= (get-text-property 0 :pos l) (get-text-property 0 :pos r)))))
+  (defun counsel-mu4e-and-bbdb-full-contacts-sorted ()
+    "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
+    (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
+    (sort (ht-map (lambda (e c)
+				    (propertize (plist-get c :full-contact) :email e :pos (plist-get c :pos)))
+				  counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
+		  (lambda (l r) (<= (get-text-property 0 :pos l) (get-text-property 0 :pos r)))))
 
-(defun counsel-mu4e-and-bbdb-addresses-get-sorted-contacts ()
-  "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
-  (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
-  (mapcar 'car (sort (ht-map (lambda (e c)
-                               (ignore e)
-							   (cons (if (string= (plist-get c :contact-from) "bbdb")
-									     (concat (plist-get c :full-contact) " #")
-								       (plist-get c :full-contact))
-								     (plist-get c :pos)))
-							 counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
-					 (lambda (l r) (<= (cdr l) (cdr r))))))
+  (defun counsel-mu4e-and-bbdb-addresses-get-sorted-contacts ()
+    "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
+    (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
+    (mapcar 'car (sort (ht-map (lambda (e c)
+                                 (ignore e)
+							     (cons (if (string= (plist-get c :contact-from) "bbdb")
+									       (concat (plist-get c :full-contact) " #")
+								         (plist-get c :full-contact))
+								       (plist-get c :pos)))
+							   counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
+					   (lambda (l r) (<= (cdr l) (cdr r))))))
 
-(defun counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler (str pred action)
-  "Complete address STR with predication PRED for ACTION."
-  (unless counsel-mu4e-and-bbdb-addresses-mu4e-contacts
-	(counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb))
-  (cond
-   ((eq action nil)
-	(try-completion str counsel-mu4e-and-bbdb-addresses-mu4e-contacts pred))
-   ((eq action t)
-	(all-completions str counsel-mu4e-and-bbdb-addresses-mu4e-contacts pred))
-   ((eq action 'metadata)
-	;; our contacts are already sorted - just need to tell the
-	;; completion machinery not to try to undo that...
-	'(metadata
-	  (display-sort-function . identity)
-	  (cycle-sort-function   . identity)))))
+  (defun counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler (str pred action)
+    "Complete address STR with predication PRED for ACTION."
+    (unless counsel-mu4e-and-bbdb-addresses-mu4e-contacts
+	  (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb))
+    (cond
+     ((eq action nil)
+	  (try-completion str counsel-mu4e-and-bbdb-addresses-mu4e-contacts pred))
+     ((eq action t)
+	  (all-completions str counsel-mu4e-and-bbdb-addresses-mu4e-contacts pred))
+     ((eq action 'metadata)
+	  ;; our contacts are already sorted - just need to tell the
+	  ;; completion machinery not to try to undo that...
+	  '(metadata
+	    (display-sort-function . identity)
+	    (cycle-sort-function   . identity)))))
 
-;; searches through contacts with ivy
+  ;; searches through contacts with ivy
 ;;;###autoload
-(defun counsel-mu4e-and-bbdb-addresses-mu4e-contacts ()
-  "Select a contact from mu4e or BBDB via counsel.  Default action is to show emails from the selected contact."
-  (interactive)
-  (ivy-read "Contact:"
-			(counsel-mu4e-and-bbdb-addresses-get-sorted-contacts)
-			:history 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history
-			:action '(1
-					  ("a" (lambda (add)
-							 (mu4e-headers-search (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person add)))
-					   "show all emails from all email addresses for this person")
-					  ("i" (lambda (add)
-							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
-							   (insert nohash)))
-                       "insert")
-					  ("w" (lambda (add)
-							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
-							   (kill-new nohash)))
-                       "copy to killring")
-					  ("I" (lambda (add)
-							 (insert (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
-                       "insert email address only")
-					  ("W" (lambda (add)
-							 (kill-new (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
-                       "copy to email address only to killring")
-					  ("l" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
-								    (query (concat "from:" email " OR " "to:" email)))
-							   (mu4e-headers-search query)))
-					   "show email from/to this person")
-					  ("f" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
-								    (query (concat "from:" email)))
-							   (mu4e-headers-search query)))
-					   "show emails from this person")
-					  ("c" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
-							   (mu4e~compose-mail email))
-							 (mu4e-headers-search query))
-					   "send an email to person")
-					  ("b" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
-							   ;; 4th entry is the email address (counsel-bbdb format)
-							   (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action `(nil nil nil nil ,email))))
-					   "open record in BBDB"))
-			:caller 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
-
-;;;###autoload
-(defun counsel-mu4e-and-bbdb-addresses-setup ()
-  "Advice mu4e contacts."
-  (require 'counsel-bbdb)
-  (advice-tools/advice-add-if-def
-   'mu4e~compose-complete-handler
-   :override
-   'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler)
-  (advice-tools/advice-add-if-def
-   'counsel-bbdb-complete-mail
-   :override
-   'counsel-mu4e-and-bbdb-addresses-mu4e-counsel-bbdb-complete-mail)
-  (advice-tools/advice-add-if-def
-   'counsel-bbdb-expand-mail-alias
-   :override
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
-  (advice-tools/advice-add-if-def
-   'counsel-bbdb
-   :override
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb)
-  (advice-tools/advice-add-if-def
-   'counsel-bbdb-expand-mail-alias
-   :override
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
-  (advice-tools/advice-add-if-def
-   'counsel-bbdb-reload
-   :override
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload)
-  ;; allow reloading and opening people in bbdb
-  (ivy-add-actions 'counsel-bbdb-complete-mail
-                   '(("b" counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action "open in BBDB")
-                     ("r" counsel-bbdb-reload "reload from BBDB file")))
-
-  ;; allow reloading and opening people in bbdb
-  (ivy-add-actions 'counsel-bbdb-complete-mail
-                   '(("b" counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action "open in BBDB")
-                     ("r" counsel-bbdb-reload "reload from BBDB file")))
-  )
+  (defun counsel-mu4e-and-bbdb-addresses-mu4e-contacts ()
+    "Select a contact from mu4e or BBDB via counsel.  Default action is to show emails from the selected contact."
+    (interactive)
+    (ivy-read "Contact:"
+			  (counsel-mu4e-and-bbdb-addresses-get-sorted-contacts)
+			  :history 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history
+			  :action '(1
+					    ("a" (lambda (add)
+							   (mu4e-headers-search (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person add)))
+					     "show all emails from all email addresses for this person")
+					    ("i" (lambda (add)
+							   (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
+							     (insert nohash)))
+                         "insert")
+					    ("w" (lambda (add)
+							   (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
+							     (kill-new nohash)))
+                         "copy to killring")
+					    ("I" (lambda (add)
+							   (insert (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+                         "insert email address only")
+					    ("W" (lambda (add)
+							   (kill-new (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+                         "copy to email address only to killring")
+					    ("l" (lambda (add)
+							   (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
+								      (query (concat "from:" email " OR " "to:" email)))
+							     (mu4e-headers-search query)))
+					     "show email from/to this person")
+					    ("f" (lambda (add)
+							   (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
+								      (query (concat "from:" email)))
+							     (mu4e-headers-search query)))
+					     "show emails from this person")
+					    ("c" (lambda (add)
+							   (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+							     (mu4e~compose-mail email))
+							   (mu4e-headers-search query))
+					     "send an email to person")
+					    ("b" (lambda (add)
+							   (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+							     ;; 4th entry is the email address (counsel-bbdb format)
+							     (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action `(nil nil nil nil ,email))))
+					     "open record in BBDB"))
+			  :caller 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
 
 ;;;###autoload
-(defun counsel-mu4e-and-bbdb-addresses-remove ()
-  "Advice mu4e contacts."
-  (advice-tools/advice-remove-if-def
-   'mu4e~compose-complete-handler
-   'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler)
-  (advice-tools/advice-remove-if-def
-   'counsel-bbdb-complete-mail
-   'counsel-mu4e-and-bbdb-addresses-mu4e-counsel-bbdb-complete-mail)
-  (advice-tools/advice-remove-if-def
-   'counsel-bbdb-expand-mail-alias
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
-  (advice-tools/advice-remove-if-def
-   'counsel-bbdb
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb)
-  (advice-tools/advice-remove-if-def
-   'counsel-bbdb-expand-mail-alias
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
-  (advice-tools/advice-remove-if-def
-   'counsel-bbdb-reload
-   'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload))
+  (defun counsel-mu4e-and-bbdb-addresses-setup ()
+    "Advice mu4e contacts."
+    (require 'counsel-bbdb)
+    (advice-tools/advice-add-if-def
+     'mu4e~compose-complete-handler
+     :override
+     'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler)
+    (advice-tools/advice-add-if-def
+     'counsel-bbdb-complete-mail
+     :override
+     'counsel-mu4e-and-bbdb-addresses-mu4e-counsel-bbdb-complete-mail)
+    (advice-tools/advice-add-if-def
+     'counsel-bbdb-expand-mail-alias
+     :override
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
+    (advice-tools/advice-add-if-def
+     'counsel-bbdb
+     :override
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb)
+    (advice-tools/advice-add-if-def
+     'counsel-bbdb-expand-mail-alias
+     :override
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
+    (advice-tools/advice-add-if-def
+     'counsel-bbdb-reload
+     :override
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload)
+    ;; allow reloading and opening people in bbdb
+    (ivy-add-actions 'counsel-bbdb-complete-mail
+                     '(("b" counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action "open in BBDB")
+                       ("r" counsel-bbdb-reload "reload from BBDB file")))
 
-(provide 'counsel-mu4e-and-bbdb-addresses)
+    ;; allow reloading and opening people in bbdb
+    (ivy-add-actions 'counsel-bbdb-complete-mail
+                     '(("b" counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action "open in BBDB")
+                       ("r" counsel-bbdb-reload "reload from BBDB file"))))
+
+;;;###autoload
+  (defun counsel-mu4e-and-bbdb-addresses-remove ()
+    "Advice mu4e contacts."
+    (advice-tools/advice-remove-if-def
+     'mu4e~compose-complete-handler
+     'counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler)
+    (advice-tools/advice-remove-if-def
+     'counsel-bbdb-complete-mail
+     'counsel-mu4e-and-bbdb-addresses-mu4e-counsel-bbdb-complete-mail)
+    (advice-tools/advice-remove-if-def
+     'counsel-bbdb-expand-mail-alias
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
+    (advice-tools/advice-remove-if-def
+     'counsel-bbdb
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb)
+    (advice-tools/advice-remove-if-def
+     'counsel-bbdb-expand-mail-alias
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-expand-mail-alias)
+    (advice-tools/advice-remove-if-def
+     'counsel-bbdb-reload
+     'counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload))
+
+  (provide 'counsel-mu4e-and-bbdb-addresses)
 ;;; counsel-mu4e-and-bbdb-addresses.el ends here
