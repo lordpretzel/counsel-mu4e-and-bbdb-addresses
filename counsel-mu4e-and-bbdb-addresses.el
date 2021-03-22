@@ -45,14 +45,14 @@
 ;; CUSTOM
 (defcustom counsel-mu4e-and-bbdb-addresses-counsel-bbdb-only-use-primary-email-for-groups
   t
-  "Use only primary email address for persons when expanding all email addresses for a group?."
+  "Use only primary email address for persons when expanding group."
   :group 'counsel-mu4e-and-bbdb-addresses
   :type 'boolean)
 
 ;; ********************************************************************************
 ;; VARIABLES
 (defvar counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history nil
-  "Stores history of contact completions with counsel-mu4e-and-bbdb-addresses-mu4e-contacts.")
+  "History of completions for counsel-mu4e-and-bbdb-addresses-mu4e-contacts.")
 
 (defvar counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended nil
   "HT that stores mu4e~contexts and bbdb contacts for mu4e completion.")
@@ -156,6 +156,7 @@ already is a comma then do not prepend."
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-counsel-bbdb-complete-mail (&optional append-comma)
   "Select person from BBDB to insert into email as to/cc/bcc.  Complete email before point.   Extra argument APPEND-COMMA will append comma after email."
   (interactive "P")
+  (ignore 'append-comma)
   (unless counsel-bbdb-contacts
     (counsel-bbdb-reload))
   (ivy-read "Contacts: "
@@ -199,7 +200,9 @@ already is a comma then do not prepend."
               (counsel-bbdb-insert-one-mail-address r t)
               (push name names)
               (message "%s names" names)))))
-      (replace-regexp ",[[:space:]]*$" "" nil (line-beginning-position) (line-end-position)))))
+      (goto-char (line-beginning-position))
+      (re-search-forward ",[[:space:]]*$" (line-end-position))
+      (replace-match ""))))
 
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload ()
   "Load contacts from `bbdb-file'."
@@ -295,6 +298,7 @@ already is a comma then do not prepend."
 	"-"))
 
 (defun counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts ()
+  "Make sure that mu4e contacts have been loaded."
   (unless mu4e~contacts
 	(mu4e~request-contacts-maybe)
 	(let ((prevcount 0))
@@ -318,7 +322,7 @@ already is a comma then do not prepend."
 	(counsel-bbdb-reload))
   (unless mu4e~contacts
 	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts))
-  (let ((pos 1)
+  (let ((pos 1))
 		;;(bbdb-maxpos (length counsel-bbdb-contacts)))
 	    ;; insert bbdb contacts
 	    (mapc (lambda (c)
@@ -363,7 +367,7 @@ already is a comma then do not prepend."
 							    (fullcontact (concat nameemail " => MU4E")))
 					       `(,fullcontact ,name nil nil ,email nil)))
 				       (--filter (string= (plist-get (cadr it) :contact-from) "mu4e")
-							     (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))))))))
+							     (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))))))
 
 ;;;###autoload
 (defun counsel-mu4e-and-bbdb-full-contacts-sorted ()
