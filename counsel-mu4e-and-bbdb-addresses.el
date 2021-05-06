@@ -66,6 +66,13 @@
 ;; ********************************************************************************
 ;; FUNCTIONS
 
+;; return mu4e contacts in a version independent way
+(defun counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts ()
+  "Return mu4e's the internal hashmap of contacts."
+  (if (version-list-<= '(1 5) (version-to-list mu4e-mu-version))
+      mu4e~contacts-hash
+    mu4e~contacts))
+
 ;; ivy-rich helper functions
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-get-name (entry)
   "Get name from counsel-bbdb string ENTRY which is `name:email => alias'."
@@ -282,7 +289,7 @@ already is a comma then do not prepend."
 		(emails (list (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))))
 	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts)
 	(when person
-	  (setq emails (append emails (cl-remove-duplicates (mapcar (lambda (a) (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address a)) (all-completions person mu4e~contacts))))))
+	  (setq emails (append emails (cl-remove-duplicates (mapcar (lambda (a) (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address a)) (all-completions person (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))))))
 	emails))
 
 ;; create query for returnning all emails send from person x (retrieving all email addressed for person from mu4e~contacts)
@@ -299,16 +306,16 @@ already is a comma then do not prepend."
 
 (defun counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts ()
   "Make sure that mu4e contacts have been loaded."
-  (unless mu4e~contacts
+  (unless (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)
 	(mu4e~request-contacts-maybe)
 	(let ((prevcount 0))
-	  (while (not mu4e~contacts)
+	  (while (not (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts))
         (sleep-for 0 100)	    )
       (sleep-for 0 100)
 	  ;; this is async, so we have to poll
-      (while (not (eq (hash-table-count mu4e~contacts) prevcount))
+      (while (not (eq (hash-table-count (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)) prevcount))
         (sleep-for 0 100)
-        (setq prevcount (hash-table-count mu4e~contacts))))))
+        (setq prevcount (hash-table-count (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))))))
 
 (defun counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb ()
   "Create a hash-table storing contacts from mu4e and bbdb for address book and email address look-ups."
@@ -320,7 +327,7 @@ already is a comma then do not prepend."
   ;; update bbdb contacts if need be
   (when (eq counsel-bbdb-contacts nil)
 	(counsel-bbdb-reload))
-  (unless mu4e~contacts
+  (unless (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)
 	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts))
   (let ((pos 1))
 		;;(bbdb-maxpos (length counsel-bbdb-contacts)))
@@ -351,7 +358,7 @@ already is a comma then do not prepend."
 			      (unless (ht-contains-p counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended email)
 				    (cl-incf pos)
 				    (puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))))
-		      (ht-keys mu4e~contacts))
+		      (ht-keys (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))
 	    ;; put in hashtable for mu4e
 	    (mapc (lambda (c)
 			    (puthash (plist-get c :full-contact) (plist-get c :pos) counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
