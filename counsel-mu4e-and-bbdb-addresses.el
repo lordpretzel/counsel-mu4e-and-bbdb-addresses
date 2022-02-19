@@ -69,9 +69,12 @@
 ;; return mu4e contacts in a version independent way
 (defun counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts ()
   "Return mu4e's the internal hashmap of contacts."
-  (if (version-list-<= '(1 5) (version-to-list mu4e-mu-version))
-      mu4e~contacts-hash
-    mu4e~contacts))
+  (cond
+   ((version-list-<= '(1 7) (version-to-list mu4e-mu-version))
+    mu4e--contacts-hash)
+   ((version-list-<= '(1 5) (version-to-list mu4e-mu-version))
+    mu4e~contacts-hash)
+   (t mu4e~contacts)))
 
 ;; ivy-rich helper functions
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-get-name (entry)
@@ -304,9 +307,14 @@ already is a comma then do not prepend."
 	  "*"
 	"-"))
 
+(when (version-list-<= '(1 7) (version-to-list mu4e-mu-version))
+  (defalias 'mu4e~request-contacts-maybe 'mu4e--request-contacts-maybe))
+
 (defun counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts ()
   "Make sure that mu4e contacts have been loaded."
   (unless (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)
+    (when (not (version-list-< (version-to-list mu4e-mu-version) '(1 7)))
+      (mu4e--init-handlers))
 	(mu4e~request-contacts-maybe)
 	(let ((prevcount 0))
 	  (while (not (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts))
