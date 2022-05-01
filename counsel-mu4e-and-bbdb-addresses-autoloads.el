@@ -11,10 +11,15 @@
 ;;; Generated autoloads from counsel-mu4e-and-bbdb-addresses.el
 
 (autoload 'counsel-mu4e-and-bbdb-full-contacts-sorted "counsel-mu4e-and-bbdb-addresses" "\
-Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'." nil nil)
+Return sorted contacts.
+
+Contacts are sorted based on the order recoded in
+`counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'." nil nil)
 
 (autoload 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts "counsel-mu4e-and-bbdb-addresses" "\
-Select a contact from mu4e or BBDB via counsel.  Default action is to show emails from the selected contact." t nil)
+Select a contact from mu4e or BBDB via counsel.
+
+Default action is to show emails from the selected contact." t nil)
 
 (autoload 'counsel-mu4e-and-bbdb-addresses-setup "counsel-mu4e-and-bbdb-addresses" "\
 Advice mu4e contacts." nil nil)
@@ -31,10 +36,15 @@ Advice mu4e contacts." nil nil)
 ;;; Generated autoloads from flycheck_counsel-mu4e-and-bbdb-addresses.el
 
 (autoload 'counsel-mu4e-and-bbdb-full-contacts-sorted "flycheck_counsel-mu4e-and-bbdb-addresses" "\
-Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'." nil nil)
+Return sorted contacts.
+
+Contacts are sorted based on the order recoded in
+`counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'." nil nil)
 
 (autoload 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts "flycheck_counsel-mu4e-and-bbdb-addresses" "\
-Select a contact from mu4e or BBDB via counsel.  Default action is to show emails from the selected contact." t nil)
+Select a contact from mu4e or BBDB via counsel.
+
+Default action is to show emails from the selected contact." t nil)
 
 (autoload 'counsel-mu4e-and-bbdb-addresses-setup "flycheck_counsel-mu4e-and-bbdb-addresses" "\
 Advice mu4e contacts." nil nil)

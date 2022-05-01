@@ -3,7 +3,7 @@
 ;; Author: Boris Glavic <lordpretzel@gmail.com>
 ;; Maintainer: Boris Glavic <lordpretzel@gmail.com>
 ;; Version: 0.1
-;; Package-Requires: ((advice-tools "0.1") (dash "2.12.0") (counsel-bbdb "20181128.1320") (bbdb "3.2") (ht "20201119.518"))
+;; Package-Requires: ((advice-tools "0.1") (dash "2.12.0") (counsel-bbdb "20181128.1320") (bbdb "3.2") (ht "20201119.518") idf)
 ;; Homepage: https://github.com/lordpretzel/counsel-mu4e-and-bbdb-addresses
 ;; Keywords:
 
@@ -40,6 +40,7 @@
 (require 'ht)
 (require 'mu4e)
 (require 'bbdb-com)
+(require 'idf)
 
 ;; ********************************************************************************
 ;; CUSTOM
@@ -62,6 +63,18 @@
 
 (defvar counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts nil
   "Extends `counsel-bbdb-contacts'.")
+
+(defvar counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv nil
+  "Materialized IDF view for counsel-bbdb formated addresses.")
+
+(defvar counsel-mu4e-and-bbdb-addresses--counsel-all-mv nil
+  "Materialized IDF view of contacts for address completion.")
+
+(defvar counsel-mu4e-and-bbdb-addresses-mu4e-previous-contacts nil
+  "Store copy of mu4e contacts hashmap to determine differences.")
+
+(defvar counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache nil
+  "Cache newly created contact from BBDB.")
 
 ;; ********************************************************************************
 ;; FUNCTIONS
@@ -99,7 +112,9 @@
       "")))
 
 (defun counsel-mu4e-and-bbdb-addresses-prepend-comma ()
-  "Insert a comma before the current position unless it is an empty to/bcc/cc prefix or there already is a comma."
+  "Insert a comma before the current position.
+
+Unless it is an empty to/bcc/cc prefix or there already is a comma."
   (let (match
         insert-comma-point)
     (save-excursion
@@ -148,7 +163,9 @@ already is a comma then do not prepend."
 
 ;; add receipient to TO , CC, or BCC with counsel-bbdb completion
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-add (&optional where)
-  "Add receipient to `WHERE' (symbol: one of `to', `cc', or `bcc') with counsel-bbdb."
+  "Add receipient to WHERE with counsel-bbdb.
+
+WHERE should be a symbol, one of `to', `cc', or `bcc'."
   (interactive)
   (let ((where (or where
                    (intern (ivy-read "Add to: "
@@ -164,13 +181,15 @@ already is a comma then do not prepend."
 
 ;; replacement functions for counsel-bbdb
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-counsel-bbdb-complete-mail (&optional append-comma)
-  "Select person from BBDB to insert into email as to/cc/bcc.  Complete email before point.   Extra argument APPEND-COMMA will append comma after email."
+  "Select person from BBDB to insert into email as to/cc/bcc.
+
+Complete email address before point. Extra argument APPEND-COMMA
+will append comma after email."
   (interactive "P")
-  (ignore 'append-comma)
-  (unless counsel-bbdb-contacts
-    (counsel-bbdb-reload))
+  (ignore append-comma)
+  (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
   (ivy-read "Contacts: "
-            counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
+            (idf-mv-get-result counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv);; counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
             :initial-input (or (thing-at-point 'symbol) "")
             :caller 'counsel-bbdb-complete-mail
             :action (lambda (r) (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-insert-email r t nil))))
@@ -178,10 +197,10 @@ already is a comma then do not prepend."
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb ()
   "Lookup people in BBDB."
   (interactive)
-  (unless counsel-bbdb-contacts
-    (counsel-bbdb-reload))
+  (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
   (ivy-read "Contacts: "
-            counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
+            ;; counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
+            (idf-mv-get-result counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv)
             ;; lordpretzel-counsel-bbdb-contacts
             :initial-input (or (thing-at-point 'symbol) "")
             :caller 'counsel-bbdb-complete-mail
@@ -264,14 +283,19 @@ already is a comma then do not prepend."
 
 ;; extracting information from entries
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address (add)
-  "Extract email address from mu4e contact ADD which may use one of two formats: 'email' or 'name <email>'."
+  "Extract email address from mu4e contact ADD.
+
+ADD may use one of two formats: 'email' or 'name <email>'."
   (save-match-data
 	(if (string-match "<\\([^>]+\\)>" add)
 		(match-string 1 add)
 	  add)))
 
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact (add)
-  "Extract name from a mu4e-contact ADD if it of the form 'name <email>', return nil if this is only an email address."
+  "Extract name from a mu4e-contact ADD.
+
+If ADD is of the form 'name <email>', return nil if this is only
+an email address."
   (save-match-data
 	(if (string-match "\\([^<]+\\)<\\([^>]+\\)>" add)
 		(string-trim (match-string 1 add))
@@ -279,7 +303,10 @@ already is a comma then do not prepend."
 
 ;; return name or "" if there is no name
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-or-emtpy-string (add)
-  "Extract name from a mu4e-contact ADD if it of the form 'name <email>', return empty string if this is only an email address."
+  "Extract name from a mu4e-contact ADD.
+
+If ADD it of the form 'name <email>', return empty string if this
+is only an email address."
   (let ((name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact add)))
 	(if name
 		name
@@ -287,7 +314,11 @@ already is a comma then do not prepend."
 
 ;; find all email addressses for mu4e person (TODO do smarter matching)
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-get-all-email-addresses-for-person (add)
-  "Find all emails from a given mu4e-contact ADD.  If the contact is of the form 'name <email>', then also return emails send from contacts with the same name but different email address."
+  "Find all emails from a given mu4e-contact ADD.
+
+If the contact ADD is of the form 'name <email>', then also
+return emails send from contacts with the same name but different
+email address."
   (let ((person (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact add))
 		(emails (list (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))))
 	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts)
@@ -325,68 +356,128 @@ already is a comma then do not prepend."
         (sleep-for 0 100)
         (setq prevcount (hash-table-count (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))))))
 
-(defun counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb ()
-  "Create a hash-table storing contacts from mu4e and bbdb for address book and email address look-ups."
-  ;; create ht if it does not exist
-  (when (eq counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended nil)
-	(setq counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended (ht-create 'equal)))
-  (when (eq counsel-mu4e-and-bbdb-addresses-mu4e-contacts nil)
-	(setq counsel-mu4e-and-bbdb-addresses-mu4e-contacts (ht-create 'equal)))
-  ;; update bbdb contacts if need be
+;; ********************************************************************************
+;; FUNCTIONS FOR CREATING AND MAINTAINING DATA STRUTURES
+(defun counsel-mu4e-and-bbdb-addresses--contact-less-p  (a b)
+  "Compare two contacts A and B for sorting.
+
+BBDB contacts come first. Secondary we sort on name in increasing order."
+  (let ((ca (plist-get (cdr a) :contact-from))
+        (cb (plist-get (cdr b) :contact-from))
+        (na (plist-get (cdr a) :sort-name))
+        (nb (plist-get (cdr b) :sort-name))
+        (ea (plist-get (cdr a) :email))
+        (eb (plist-get (cdr a) :email)))
+    (or (string< ca cb)
+        (and (string= ca cb)
+             (string< na nb))
+        (and (string= ca cb)
+             (string= na nb)
+             (string< ea eb)))))
+
+(defun counsel-mu4e-and-bbdb-addresses--contact-bbdb-less-p (a b)
+  "Compare two BBDB contact A and B for sorting."
+  (or (string< (nth 5 a)
+               (nth 5 b))
+      (and (string= (nth 5 a)
+                    (nth 5 b))
+           (string< (nth 2 a)
+                    (nth 2 b)))
+      (and (string= (nth 5 a)
+                    (nth 5 b))
+           (string= (nth 2 a)
+                    (nth 2 b))
+           (string< (nth 4 a)
+                    (nth 4 b)))))
+
+(defun counsel-mu4e-and-bbdb-addresses--extract-bbdb-contact (c)
+  "Extract information from an BBDB contact C."
+  (let* ((group (nth 5 c))
+         (email (nth 4 c))
+         (lastname (nth 1 c))
+		 (name (format "%s %s" (nth 2 c) (nth 1 c)))
+         (sortname (if name (downcase name) email))
+		 (fullcontact (format "%s <%s>" name email))
+		 (contact `(:full-contact ,fullcontact :name ,name :email ,email :sort-name ,sortname :last-name ,lastname :contact-from "bbdb" :group ,group)))
+	contact))
+
+(defun counsel-mu4e-and-bbdb-addresses--extract-mu4e-contact  (c)
+  "Extract information from mu4e contact C."
+  (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address c))
+		 (name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact c))
+         (sortname (if name (downcase name) email))
+		 (contact `(:full-contact ,c :name ,name :email ,email :sort-name ,sortname :contact-from "mu4e"  :group "MU4E")))
+                          contact))
+
+(defun counsel-mu4e-and-bbdb-addresses--transform-to-bbdb (c)
+  "Transform our contact C format to BBDB contacts."
+  (let* ((name (plist-get c :name))
+         (email (plist-get c :email))
+         (group (plist-get c :group))
+         (fullcontact (format "%s:%s => %s"
+                              name
+                              email
+                              group)))
+    `(,fullcontact ,name nil nil ,email ,group)))
+
+(defun counsel-mu4e-and-bbdb-addresses--transform-to-mu4e (c)
+  "Transform out contact format C to mu4e."
+  (let* ((fullcontact (plist-get c :full-contact))
+         (key (if (string= (plist-get c :contact-from) "mu4e")
+                  fullcontact
+                (concat fullcontact " #"))))
+    (cons key c)))
+
+(defun counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb (&optional force)
+  "Create a hash-table storing contacts from mu4e and bbdb.
+
+This is used for address book and email address look-ups. If
+FORCE is non-nil, then regenerate the views from scratch."
+  ;; update bbdb and mu4e contacts if need be
   (when (eq counsel-bbdb-contacts nil)
 	(counsel-bbdb-reload))
   (unless (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)
 	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts))
-  (let ((pos 1))
-		;;(bbdb-maxpos (length counsel-bbdb-contacts)))
-	    ;; insert bbdb contacts
-	    (mapc (lambda (c)
-			    (let* ((email (nth 4 c))
-				       (name (format "%s %s" (nth 2 c) (nth 1 c)))
-				       (fullcontact (format "%s <%s>" name email))
-				       (contact `(:full-contact ,fullcontact :name ,name :contact-from "bbdb" :pos ,pos)))
-			      (cl-incf pos)
-			      (puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))
-		      (sort
-		       (--filter (not (string-prefix-p "@Conflict" (nth 0 it))) (copy-sequence counsel-bbdb-contacts))
-		       (lambda (l r)
-			     (or (and (nth 1 r) (string-prefix-p (nth 1 r) "@"))
-				     (if (string= (nth 1 l) (nth 1 r))
-					     (if (string= (nth 2 l) (nth 2 r))
-						     (string-lessp (nth 4 l) (nth 4 r))
-					       (or (not (nth 2 r))
-						       (string-lessp (nth 2 l) (nth 2 r))))
-				       (or (not (nth 1 r))
-					       (string-lessp (nth 1 l) (nth 1 r))))))))
-	    ;; insert mu4e contacts
-	    (mapc (lambda (c)
-			    (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address c))
-				       (name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact c))
-				       (contact `(:full-contact ,c :name ,name :contact-from "mu4e" :pos ,pos)))
-			      (unless (ht-contains-p counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended email)
-				    (cl-incf pos)
-				    (puthash email contact counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))))
-		      (ht-keys (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))
-	    ;; put in hashtable for mu4e
-	    (mapc (lambda (c)
-			    (puthash (plist-get c :full-contact) (plist-get c :pos) counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
-		      (ht-values counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended))
-	    ;; create list for counsel-bbdb
-	    (setq counsel-mu4e-and-bbdb-addresses-counsel-bbdb-contacts
-		      (cl-union
-		       counsel-bbdb-contacts
-		       (mapcar (lambda (c)
-					     (let* ((nameemail (replace-regexp-in-string "[>]" "" (replace-regexp-in-string " [<]" ":" (plist-get (cadr c) :full-contact))))
-							    (name  (plist-get (cadr c) :name))
-							    (email (car c))
-							    (fullcontact (concat nameemail " => MU4E")))
-					       `(,fullcontact ,name nil nil ,email nil)))
-				       (--filter (string= (plist-get (cadr it) :contact-from) "mu4e")
-							     (ht-map (lambda (k v) (list k v)) counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)))))))
+  ;; create materialized views
+  (unless (and counsel-mu4e-and-bbdb-addresses--counsel-all-mv
+               counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
+               (not force))
+    (let ((allcontacts (idf-union
+            ;; create bbdb contacts
+            (->
+             (idf-create-source :name :bbdb-contacts :content counsel-bbdb-contacts)
+             (idf-filter :fn (lambda (c) (not (string-prefix-p "@Conflict" (nth 0 c)))))
+             (idf-map #'counsel-mu4e-and-bbdb-addresses--extract-bbdb-contact))
+            ;; create mu4e contacts
+            (->
+             (idf-create-source
+              :name :mu4e-contacts
+              :content (ht-keys (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))
+             (idf-map #'counsel-mu4e-and-bbdb-addresses--extract-mu4e-contact)))))
+      ;; create counsel-bbdb version of our contacts too
+      (setq counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
+            (->
+             allcontacts
+             (idf-map #'counsel-mu4e-and-bbdb-addresses--transform-to-bbdb)
+             (idf-materialize-as :viewtype 'sortedlist
+                                 :comparefn #'counsel-mu4e-and-bbdb-addresses--contact-bbdb-less-p)))
+      ;; create view of sorted contacts from bbdb and mu4e
+      (setq counsel-mu4e-and-bbdb-addresses--counsel-all-mv
+            (->
+             allcontacts
+             (idf-map #'counsel-mu4e-and-bbdb-addresses--transform-to-mu4e)
+             (idf-materialize-as
+              :viewtype 'sortedlist
+              :comparefn #'counsel-mu4e-and-bbdb-addresses--contact-less-p)))
+      ;; install hooks for incremental maintenance
+      (counsel-mu4e-and-bbdb-addresses--install-maintenance-hooks))))
 
 ;;;###autoload
 (defun counsel-mu4e-and-bbdb-full-contacts-sorted ()
-  "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
+  "Return sorted contacts.
+
+Contacts are sorted based on the order recoded in
+`counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
   (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
   (sort (ht-map (lambda (e c)
 				  (propertize (plist-get c :full-contact) :email e :pos (plist-get c :pos)))
@@ -394,16 +485,104 @@ already is a comma then do not prepend."
 		(lambda (l r) (<= (get-text-property 0 :pos l) (get-text-property 0 :pos r)))))
 
 (defun counsel-mu4e-and-bbdb-addresses-get-sorted-contacts ()
-  "Return contacts sorted based on the order recoded in `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
+  "Return sorted contacts.
+
+Contacts are sorted by
+`counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb'."
   (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
-  (mapcar 'car (sort (ht-map (lambda (e c)
-                               (ignore e)
-							   (cons (if (string= (plist-get c :contact-from) "bbdb")
-									     (concat (plist-get c :full-contact) " #")
-								       (plist-get c :full-contact))
-								     (plist-get c :pos)))
-							 counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
-					 (lambda (l r) (<= (cdr l) (cdr r))))))
+  (idf-mv-get-result counsel-mu4e-and-bbdb-addresses--counsel-all-mv))
+
+;; ********************************************************************************
+;; hooks for incremental maintenance
+(defun counsel-mu4e-and-bbdb-addresses--install-maintenance-hooks ()
+  "Install hooks for incrementally maintaining our concact information.
+
+These hooks trigger when BBDB or mu4e contacts change."
+  (add-hook 'bbdb-change-hook
+            #'counsel-mu4e-and-bbdb-addresses-bbdb-changed-hook)
+  (add-hook 'bbdb-create-hook
+            #'counsel-mu4e-and-bbdb-addresses-bbdb-create-hook)
+  (add-hook 'mu4e-index-updated-hook
+            #'counsel-mu4e-and-bbdb-addresses-mu4e-index-updated-hook))
+
+(defun counsel-mu4e-and-bbdb-addresses-diff-mu4e-contacts ()
+  "Determine which mu4e contacts have changed and create a delta for them."
+  (let ((ins nil)
+        (del nil)
+        (newht (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts))
+        (oldht counsel-mu4e-and-bbdb-addresses-mu4e-previous-contacts))
+    (if (not oldht)
+        (progn
+          (setq counsel-mu4e-and-bbdb-addresses-mu4e-previous-contacts
+                (ht-copy
+                 (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))
+          nil)
+      ;; ins
+      (ht-map (lambda (k v)
+                (unless (equal (ht-get oldht k) v)
+                  (push (cons k v) ins)))
+              newht)
+      ;; del
+      (ht-map (lambda (k v)
+                (unless (equal (ht-get newht k) v)
+                  (push k del)))
+              oldht)
+      ;; updated HT
+      (dolist (d del)
+        (ht-remove oldht d))
+      (dolist (i ins)
+        (puthash (car i) (cdr i) oldht))
+      (idf-delta-create
+       :inserted (--map (car it) ins)
+       :deleted del))))
+
+(defun counsel-mu4e-and-bbdb-addresses-mu4e-index-updated-hook ()
+  "After mu4e index update, maintain contacts for completion."
+  (let ((delta (counsel-mu4e-and-bbdb-addresses-diff-mu4e-contacts)))
+    (idf-maintain counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
+                  `(:mu4e-contacts ,delta))
+    (setq counsel-bbdb-contacts
+          (idf-mv-get-result counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv))))
+
+
+(defun counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts (r)
+  "Take bbdb record R and turn it into our contact format."
+  (let ((firstname (aref r 1))
+        (lastname (aref r 0))
+        (emails (aref r 7))
+        (mailaliases (alist-get 'mail-alias (aref r 8))))
+    (--map (let ((full-contact (format "%s%s:%s => %s"
+                                       (or firstname "")
+                                       (or lastname "")
+                                       it
+                                       (or mailaliases ""))))
+             `(,full-contact ,lastname ,firstname nil ,it ,mailaliases))
+           emails)))
+
+(defun counsel-mu4e-and-bbdb-addresses-bbdb-create-hook (changedr)
+  "Cache a newly created BBDB record CHANGEDR."
+  (setq counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache
+        changedr)
+  (message "CREATED: %s" changedr))
+
+(defun counsel-mu4e-and-bbdb-addresses-bbdb-changed-hook (changedr)
+  "Run this hook when BBDB record CHANGEDR changed.
+
+These hook incrementally maintain our views."
+  (let ((ins nil)
+        (del nil))
+    (if counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache
+        (setq ins (counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts changedr))
+      (setq ins (counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts changedr)))
+    ;; TODO deal with deletion which does not call a hook and update where we need to find the old version and delete it
+    (setq counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache nil)
+    (idf-maintain counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
+                  (idf-delta-create :inserted ins :deleted del))
+    (message "CHANGED: %s" changedr)))
+
+;; ********************************************************************************
+;; functions for user address search and completion
+
 
 (defun counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler (str pred action)
   "Complete address STR with predication PRED for ACTION."
@@ -424,7 +603,9 @@ already is a comma then do not prepend."
 ;; searches through contacts with ivy
 ;;;###autoload
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-contacts ()
-  "Select a contact from mu4e or BBDB via counsel.  Default action is to show emails from the selected contact."
+  "Select a contact from mu4e or BBDB via counsel.
+
+Default action is to show emails from the selected contact."
   (interactive)
   (ivy-read "Contact:"
 			(counsel-mu4e-and-bbdb-addresses-get-sorted-contacts)
