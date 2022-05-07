@@ -291,6 +291,10 @@ ADD may use one of two formats: 'email' or 'name <email>'."
 		(match-string 1 add)
 	  add)))
 
+(defun counsel-mu4e-and-bbdb-addresses--get-email (add)
+  "Get email from contact ADD in ivy-completion."
+  (plist-get (cdr add) :email))
+
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact (add)
   "Extract name from a mu4e-contact ADD.
 
@@ -319,8 +323,8 @@ is only an email address."
 If the contact ADD is of the form 'name <email>', then also
 return emails send from contacts with the same name but different
 email address."
-  (let ((person (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact add))
-		(emails (list (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))))
+  (let ((person (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact (car add)))
+		(emails (list (counsel-mu4e-and-bbdb-addresses--get-email add))))
 	(counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts)
 	(when person
 	  (setq emails (append emails (cl-remove-duplicates (mapcar (lambda (a) (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address a)) (all-completions person (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))))))
@@ -539,11 +543,11 @@ These hooks trigger when BBDB or mu4e contacts change."
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-index-updated-hook ()
   "After mu4e index update, maintain contacts for completion."
   (let ((delta (counsel-mu4e-and-bbdb-addresses-diff-mu4e-contacts)))
-    (idf-maintain counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
+    (idf-maintain-multiple `(,counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
+                             ,counsel-mu4e-and-bbdb-addresses--counsel-all-mv)
                   `(:mu4e-contacts ,delta))
     (setq counsel-bbdb-contacts
           (idf-mv-get-result counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv))))
-
 
 (defun counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts (r)
   "Take bbdb record R and turn it into our contact format."
@@ -555,7 +559,7 @@ These hooks trigger when BBDB or mu4e contacts change."
                                        (or firstname "")
                                        (or lastname "")
                                        it
-                                       (or mailaliases ""))))
+                                       (or mailaliases "BBDB"))))
              `(,full-contact ,lastname ,firstname nil ,it ,mailaliases))
            emails)))
 
@@ -576,13 +580,14 @@ These hook incrementally maintain our views."
       (setq ins (counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts changedr)))
     ;; TODO deal with deletion which does not call a hook and update where we need to find the old version and delete it
     (setq counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache nil)
-    (idf-maintain counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
-                  (idf-delta-create :inserted ins :deleted del))
-    (message "CHANGED: %s" changedr)))
+    (idf-maintain-multiple `(,counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
+                             ,counsel-mu4e-and-bbdb-addresses--counsel-all-mv)
+                  `(:bbdb-contacts ,(idf-delta-create :inserted ins :deleted del)))
+    (message "CHANGED: %s\nDELTA: %s" changedr
+             (idf-delta-create :inserted ins :deleted del))))
 
 ;; ********************************************************************************
 ;; functions for user address search and completion
-
 
 (defun counsel-mu4e-and-bbdb-addresses-mu4e~compose-complete-handler (str pred action)
   "Complete address STR with predication PRED for ACTION."
@@ -615,36 +620,36 @@ Default action is to show emails from the selected contact."
 							 (mu4e-headers-search (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person add)))
 					   "show all emails from all email addresses for this person")
 					  ("i" (lambda (add)
-							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
+							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" (car add))))
 							   (insert nohash)))
                        "insert")
 					  ("w" (lambda (add)
-							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" add)))
+							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" (car add))))
 							   (kill-new nohash)))
                        "copy to killring")
 					  ("I" (lambda (add)
-							 (insert (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+							 (insert (counsel-mu4e-and-bbdb-addresses--get-email add)))
                        "insert email address only")
 					  ("W" (lambda (add)
-							 (kill-new (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+							 (kill-new (counsel-mu4e-and-bbdb-addresses--get-email add)))
                        "copy to email address only to killring")
 					  ("l" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
+							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add))
 								    (query (concat "from:" email " OR " "to:" email)))
 							   (mu4e-headers-search query)))
 					   "show email from/to this person")
 					  ("f" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add))
+							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add))
 								    (query (concat "from:" email)))
 							   (mu4e-headers-search query)))
 					   "show emails from this person")
 					  ("c" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add)))
 							   (mu4e~compose-mail email))
 							 (mu4e-headers-search query))
 					   "send an email to person")
 					  ("b" (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address add)))
+							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add)))
 							   ;; 4th entry is the email address (counsel-bbdb format)
 							   (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-open-in-bbdb-action `(nil nil nil nil ,email))))
 					   "open record in BBDB"))
