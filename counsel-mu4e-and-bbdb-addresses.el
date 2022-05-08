@@ -25,7 +25,7 @@
 
 ;;; Commentary:
 
-;;
+;; Contact completion using counsel over a combination of mu4e and bbdb contacts.
 
 ;;; Code:
 
@@ -50,6 +50,12 @@
   :group 'counsel-mu4e-and-bbdb-addresses
   :type 'boolean)
 
+(defcustom counsel-mu4e-and-bbdb-addresses--logging
+  nil
+  "If true than show a lot of log output for debugging."
+  :group 'counsel-mu4e-and-bbdb-addresses
+  :type 'boolean)
+
 ;; ********************************************************************************
 ;; VARIABLES
 (defvar counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history nil
@@ -70,14 +76,30 @@
 (defvar counsel-mu4e-and-bbdb-addresses--counsel-all-mv nil
   "Materialized IDF view of contacts for address completion.")
 
+(defvar counsel-mu4e-and-bbdb-addresses--mu4e-search-completion-mv nil
+  "Materialized IDF view of contacts for mu4e search completion.")
+
 (defvar counsel-mu4e-and-bbdb-addresses-mu4e-previous-contacts nil
   "Store copy of mu4e contacts hashmap to determine differences.")
 
 (defvar counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache nil
   "Cache newly created contact from BBDB.")
 
+(defvar mu4e-search-company-completion-contacts nil
+  "Define to avoid cyclic imports.")
+
 ;; ********************************************************************************
 ;; FUNCTIONS
+
+;; ********************************************************************************
+;; helper function for debug logging
+(defmacro counsel-mu4e-and-bbdb-addresses--log (format-string &rest args)
+  "Call message with FORMAT-STRING and ARGS.
+
+Only writes messages when `mu4e-views--debug' is true."
+  `(when counsel-mu4e-and-bbdb-addresses--logging
+     (message ,format-string ,@args)))
+
 
 ;; return mu4e contacts in a version independent way
 (defun counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts ()
@@ -228,7 +250,7 @@ will append comma after email."
             (unless (member name names)
               (counsel-bbdb-insert-one-mail-address r t)
               (push name names)
-              (message "%s names" names)))))
+              (counsel-mu4e-and-bbdb-addresses--log "%s names" names)))))
       (goto-char (line-beginning-position))
       (re-search-forward ",[[:space:]]*$" (line-end-position))
       (replace-match ""))))
@@ -432,6 +454,12 @@ BBDB contacts come first. Secondary we sort on name in increasing order."
                 (concat fullcontact " #"))))
     (cons key c)))
 
+(defun counsel-mu4e-and-bbdb-addresses--transform-to-mu4e-search-completion (c)
+  "Transform contact C for mu4e-search completion."
+  (let ((fullcontact (plist-get c :full-contact))
+        (email (plist-get c :email)))
+    (propertize fullcontact :email email)))
+
 (defun counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb (&optional force)
   "Create a hash-table storing contacts from mu4e and bbdb.
 
@@ -446,6 +474,7 @@ FORCE is non-nil, then regenerate the views from scratch."
   (unless (and counsel-mu4e-and-bbdb-addresses--counsel-all-mv
                counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
                (not force))
+    (counsel-mu4e-and-bbdb-addresses--log "FETCH CONTACTS AND MATERIALIZE AS VIEWS: %s" (current-time-string))
     (let ((allcontacts (idf-union
             ;; create bbdb contacts
             (->
@@ -458,6 +487,7 @@ FORCE is non-nil, then regenerate the views from scratch."
               :name :mu4e-contacts
               :content (ht-keys (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))
              (idf-map #'counsel-mu4e-and-bbdb-addresses--extract-mu4e-contact)))))
+      (counsel-mu4e-and-bbdb-addresses--log "MATERIALIZED allcontacts AS VIEW: %s" (current-time-string))
       ;; create counsel-bbdb version of our contacts too
       (setq counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
             (->
@@ -465,6 +495,7 @@ FORCE is non-nil, then regenerate the views from scratch."
              (idf-map #'counsel-mu4e-and-bbdb-addresses--transform-to-bbdb)
              (idf-materialize-as :viewtype 'sortedlist
                                  :comparefn #'counsel-mu4e-and-bbdb-addresses--contact-bbdb-less-p)))
+      (counsel-mu4e-and-bbdb-addresses--log "MATERIALIZED counsel-bbdb contact format AS VIEW: %s" (current-time-string))
       ;; create view of sorted contacts from bbdb and mu4e
       (setq counsel-mu4e-and-bbdb-addresses--counsel-all-mv
             (->
@@ -473,6 +504,17 @@ FORCE is non-nil, then regenerate the views from scratch."
              (idf-materialize-as
               :viewtype 'sortedlist
               :comparefn #'counsel-mu4e-and-bbdb-addresses--contact-less-p)))
+      (counsel-mu4e-and-bbdb-addresses--log "MATERIALIZED mu4e contact format AS VIEW: %s" (current-time-string))
+      ;; create view storing propertized strings for mu4e seach completion
+      (setq counsel-mu4e-and-bbdb-addresses--mu4e-search-completion-mv
+            (->
+             allcontacts
+             (idf-map #'counsel-mu4e-and-bbdb-addresses--transform-to-mu4e-search-completion)
+             (idf-materialize-as
+              :viewtype 'sortedlist
+              :comparefn #'string<
+              :maintain-as-symbol 'mu4e-search-company-completion-contacts)))
+      (counsel-mu4e-and-bbdb-addresses--log "MATERIALIZED mu4e-search completion contact format AS VIEW: %s" (current-time-string))
       ;; install hooks for incremental maintenance
       (counsel-mu4e-and-bbdb-addresses--install-maintenance-hooks))))
 
@@ -483,10 +525,12 @@ FORCE is non-nil, then regenerate the views from scratch."
 Contacts are sorted based on the order recoded in
 `counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'."
   (counsel-mu4e-and-bbdb-addresses-create-contacts-list-from-mu4e-and-bbdb)
-  (sort (ht-map (lambda (e c)
-				  (propertize (plist-get c :full-contact) :email e :pos (plist-get c :pos)))
-				counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
-		(lambda (l r) (<= (get-text-property 0 :pos l) (get-text-property 0 :pos r)))))
+  (idf-mv-get-result counsel-mu4e-and-bbdb-addresses--mu4e-search-completion-mv)
+  ;; (sort (ht-map (lambda (e c)
+  ;;   			  (propertize (plist-get c :full-contact) :email e :pos (plist-get c :pos)))
+  ;;   			counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended)
+  ;;   	(lambda (l r) (<= (get-text-property 0 :pos l) (get-text-property 0 :pos r))))
+  )
 
 (defun counsel-mu4e-and-bbdb-addresses-get-sorted-contacts ()
   "Return sorted contacts.
@@ -542,10 +586,17 @@ These hooks trigger when BBDB or mu4e contacts change."
 
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-index-updated-hook ()
   "After mu4e index update, maintain contacts for completion."
+  (counsel-mu4e-and-bbdb-addresses--log "UPDATING CONTACTS FROM MU4E: %s"
+                                        (current-time-string))
   (let ((delta (counsel-mu4e-and-bbdb-addresses-diff-mu4e-contacts)))
+    (counsel-mu4e-and-bbdb-addresses--log "DETERMINED DELTA: have %s deleted / inserted records: %s"
+                                          (idf-delta-size delta)
+                                          (current-time-string))
     (idf-maintain-multiple `(,counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
-                             ,counsel-mu4e-and-bbdb-addresses--counsel-all-mv)
-                  `(:mu4e-contacts ,delta))
+                             ,counsel-mu4e-and-bbdb-addresses--counsel-all-mv
+                             ,counsel-mu4e-and-bbdb-addresses--mu4e-search-completion-mv)
+                           `(:mu4e-contacts ,delta))
+    (counsel-mu4e-and-bbdb-addresses--log "FINISHED APPLYING DELTA: %s" (current-time-string))
     (setq counsel-bbdb-contacts
           (idf-mv-get-result counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv))))
 
@@ -567,7 +618,7 @@ These hooks trigger when BBDB or mu4e contacts change."
   "Cache a newly created BBDB record CHANGEDR."
   (setq counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache
         changedr)
-  (message "CREATED: %s" changedr))
+  (counsel-mu4e-and-bbdb-addresses--log "CREATED NEW BBDB CONTACT: %s" changedr))
 
 (defun counsel-mu4e-and-bbdb-addresses-bbdb-changed-hook (changedr)
   "Run this hook when BBDB record CHANGEDR changed.
@@ -580,11 +631,17 @@ These hook incrementally maintain our views."
       (setq ins (counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts changedr)))
     ;; TODO deal with deletion which does not call a hook and update where we need to find the old version and delete it
     (setq counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache nil)
+    (counsel-mu4e-and-bbdb-addresses--log "CHANGED BBDB CONTACT: %s\nSTART MAINTENANCE AT: %s"
+                                          changedr
+                                          (current-time-string))
     (idf-maintain-multiple `(,counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
-                             ,counsel-mu4e-and-bbdb-addresses--counsel-all-mv)
+                             ,counsel-mu4e-and-bbdb-addresses--counsel-all-mv
+                             ,counsel-mu4e-and-bbdb-addresses--mu4e-search-completion-mv)
                   `(:bbdb-contacts ,(idf-delta-create :inserted ins :deleted del)))
-    (message "CHANGED: %s\nDELTA: %s" changedr
-             (idf-delta-create :inserted ins :deleted del))))
+    (counsel-mu4e-and-bbdb-addresses--log "CHANGED BBDB CONTACT: %s\nDELTA: %s\nFINISHED AT: %s"
+                                          changedr
+                                          (idf-delta-create :inserted ins :deleted del)
+                                          (current-time-string))))
 
 ;; ********************************************************************************
 ;; functions for user address search and completion

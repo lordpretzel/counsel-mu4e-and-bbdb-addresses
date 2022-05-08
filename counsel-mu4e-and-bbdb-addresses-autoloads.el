@@ -27,7 +27,7 @@ Advice mu4e contacts." nil nil)
 (autoload 'counsel-mu4e-and-bbdb-addresses-remove "counsel-mu4e-and-bbdb-addresses" "\
 Advice mu4e contacts." nil nil)
 
-(register-definition-prefixes "counsel-mu4e-and-bbdb-addresses" '("counsel-mu4e-and-bbdb-addresses-"))
+(register-definition-prefixes "counsel-mu4e-and-bbdb-addresses" '("counsel-mu4e-and-bbdb-addresses-" "mu4e-search-company-completion-contacts"))
 
 ;;;***
 
@@ -52,7 +52,7 @@ Advice mu4e contacts." nil nil)
 (autoload 'counsel-mu4e-and-bbdb-addresses-remove "flycheck_counsel-mu4e-and-bbdb-addresses" "\
 Advice mu4e contacts." nil nil)
 
-(register-definition-prefixes "flycheck_counsel-mu4e-and-bbdb-addresses" '("counsel-mu4e-and-bbdb-addresses-"))
+(register-definition-prefixes "flycheck_counsel-mu4e-and-bbdb-addresses" '("counsel-mu4e-and-bbdb-addresses-" "mu4e-search-company-completion-contacts"))
 
 ;;;***
 
