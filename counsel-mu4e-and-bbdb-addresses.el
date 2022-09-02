@@ -105,6 +105,8 @@ Only writes messages when `mu4e-views--debug' is true."
 (defun counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts ()
   "Return mu4e's the internal hashmap of contacts."
   (cond
+   ((version-list-<= '(1 8) (version-to-list mu4e-mu-version))
+    mu4e--contacts-set)
    ((version-list-<= '(1 7) (version-to-list mu4e-mu-version))
     mu4e--contacts-hash)
    ((version-list-<= '(1 5) (version-to-list mu4e-mu-version))
@@ -244,7 +246,7 @@ will append comma after email."
       (counsel-mu4e-and-bbdb-addresses-prepend-comma)
       (dolist (r counsel-bbdb-contacts)
         (let* ((r-alias (nth 4 (cdr r)))
-               (name (concat (nth 1 (cdr r)) (nth 2 (cdr r)))))
+               (name (nth 1 r)))
           (when (and r-alias
                      (string-match-p (format "%s\\(,\\| *$\\)" alias) r-alias))
             (unless (member name names)
