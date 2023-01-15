@@ -715,6 +715,21 @@ Default action is to show emails from the selected contact."
 			:caller 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts))
 
 ;;;###autoload
+(defun counsel-mu4e-and-bbdb-addresses-mu4e-send-mail-to-contact ()
+  "Select a contact from mu4e or BBDB via counsel.
+
+Default action is to show emails from the selected contact."
+  (interactive)
+  (ivy-read "Send email to contact: "
+			(counsel-mu4e-and-bbdb-addresses-get-sorted-contacts)
+			:history 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history
+			:action (lambda (add)
+							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add)))
+							   (mu4e~compose-mail email))
+							 (mu4e-headers-search query))
+			:caller 'counsel-mu4e-and-bbdb-addresses-mu4e-send-mail-to-contact))
+
+;;;###autoload
 (defun counsel-mu4e-and-bbdb-addresses-setup ()
   "Advice mu4e contacts."
   (require 'counsel-bbdb)
