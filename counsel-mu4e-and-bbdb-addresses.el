@@ -56,6 +56,12 @@
   :group 'counsel-mu4e-and-bbdb-addresses
   :type 'boolean)
 
+(defcustom counsel-mu4e-and-bbdb-addresses-search-mail-query-template
+  "(maildir:\"/lordpretzel-gmail/[lordpretzel].All Mail\" OR maildir:\"/bglavic-iit/[bglavic].All Mail\" OR maildir:/bglavic-iit/INBOX OR maildir:/lordpretzel-gmail/INBOX OR maildir:lordpretzel-gmail-backup/AllMail OR maildir:bglavic-iit-backup/AllMail)"
+  "Mu4e query template to use for search."
+  :group 'counsel-mu4e-and-bbdb-addresses
+  :type 'string)
+
 ;; ********************************************************************************
 ;; VARIABLES
 (defvar counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history nil
@@ -357,7 +363,7 @@ email address."
 ;; create query for returnning all emails send from person x (retrieving all email addressed for person from mu4e~contacts)
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person (add)
   "Return a mu4e query to retrieve all emails send from a person ADD."
-  (concat "(maildir:\"/lordpretzel-gmail/[lordpretzel].All Mail\" OR maildir:\"/bglavic-iit/[bglavic].All Mail\" OR maildir:/bglavic-iit/INBOX OR maildir:/lordpretzel-gmail/INBOX) AND ("
+  (concat counsel-mu4e-and-bbdb-addresses-search-mail-query-template " AND ("
 		  (mapconcat (lambda (x) (concat "from:" x)) (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-email-addresses-for-person add) " OR ") ")"))
 
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-is-org-from-address (add)
