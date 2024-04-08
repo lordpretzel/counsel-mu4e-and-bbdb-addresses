@@ -42,6 +42,9 @@
 (require 'bbdb-com)
 (require 'idf)
 
+(when (version-list-<= '(1 8) (version-to-list mu4e-mu-version))
+  (defalias 'mu4e~compose-mail 'mu4e-compose-mail))
+
 ;; ********************************************************************************
 ;; CUSTOM
 (defcustom counsel-mu4e-and-bbdb-addresses-counsel-bbdb-only-use-primary-email-for-groups
