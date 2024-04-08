@@ -42,8 +42,15 @@
 (require 'bbdb-com)
 (require 'idf)
 
-(when (version-list-<= '(1 8) (version-to-list mu4e-mu-version))
-  (defalias 'mu4e~compose-mail 'mu4e-compose-mail))
+;; ********************************************************************************
+;; aliases for changed mu4e function names
+(when (version-list-< '(1 8) (version-to-list mu4e-mu-version))
+  (defalias 'mu4e~compose-mail 'mu4e-compose-mail)
+  (defalias 'mu4e~compose-complete-handler 'mu4e--compose-complete-handler))
+
+(when (version-list-<= '(1 7) (version-to-list mu4e-mu-version))
+  (defalias 'mu4e~request-contacts-maybe 'mu4e--request-contacts-maybe))
+
 
 ;; ********************************************************************************
 ;; CUSTOM
@@ -374,9 +381,6 @@ email address."
   (if (string-match "[#]$" add)
 	  "*"
 	"-"))
-
-(when (version-list-<= '(1 7) (version-to-list mu4e-mu-version))
-  (defalias 'mu4e~request-contacts-maybe 'mu4e--request-contacts-maybe))
 
 (defun counsel-mu4e-and-bbdb-addresses-ensure-mu4e-contacts ()
   "Make sure that mu4e contacts have been loaded."
