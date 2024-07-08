@@ -3,7 +3,7 @@
 ;; Author: Boris Glavic <lordpretzel@gmail.com>
 ;; Maintainer: Boris Glavic <lordpretzel@gmail.com>
 ;; Version: 0.1
-;; Package-Requires: ((advice-tools "0.1") (dash "2.12.0") (counsel-bbdb "20181128.1320") (bbdb "3.2") (ht "20201119.518") idf)
+;; Package-Requires: ((advice-tools "0.1") (dash "2.12.0") (counsel-bbdb "20181128.1320") (bbdb "3.2") (ht "20201119.518") idf ivy)
 ;; Homepage: https://github.com/lordpretzel/counsel-mu4e-and-bbdb-addresses
 ;; Keywords:
 
@@ -41,6 +41,7 @@
 (require 'mu4e)
 (require 'bbdb-com)
 (require 'idf)
+(require 'ivy)
 
 ;; ********************************************************************************
 ;; aliases for changed mu4e function names
@@ -390,11 +391,11 @@ email address."
 	(mu4e~request-contacts-maybe)
 	(let ((prevcount 0))
 	  (while (not (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts))
-        (sleep-for 0 100)	    )
-      (sleep-for 0 100)
+        (sleep-for 0.1)	    )
+      (sleep-for 0.1)
 	  ;; this is async, so we have to poll
       (while (not (eq (hash-table-count (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)) prevcount))
-        (sleep-for 0 100)
+        (sleep-for 0.1)
         (setq prevcount (hash-table-count (counsel-mu4e-and-bbdb-addresses-get-mu4e-contacts)))))))
 
 ;; ********************************************************************************
@@ -737,9 +738,8 @@ Default action is to show emails from the selected contact."
 			(counsel-mu4e-and-bbdb-addresses-get-sorted-contacts)
 			:history 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history
 			:action (lambda (add)
-							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add)))
-							   (mu4e~compose-mail email))
-							 (mu4e-headers-search query))
+				  (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add)))
+				    (mu4e~compose-mail email)))
 			:caller 'counsel-mu4e-and-bbdb-addresses-mu4e-send-mail-to-contact))
 
 ;;;###autoload

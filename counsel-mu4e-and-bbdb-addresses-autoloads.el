@@ -55,6 +55,32 @@ Advice mu4e contacts." nil nil)
 (register-definition-prefixes "flycheck_counsel-mu4e-and-bbdb-addresses" '("counsel-mu4e-and-bbdb-addresses-" "mu4e-search-company-completion-contacts"))
 
 ;;;***
+
+
+;;; Generated autoloads from counsel-mu4e-and-bbdb-addresses.el
+
+(autoload 'counsel-mu4e-and-bbdb-full-contacts-sorted "counsel-mu4e-and-bbdb-addresses" "\
+Return sorted contacts.
+
+Contacts are sorted based on the order recoded in
+`counsel-mu4e-and-bbdb-addresses-mu4e-contacts-extended'.")
+(autoload 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts "counsel-mu4e-and-bbdb-addresses" "\
+Select a contact from mu4e or BBDB via counsel.
+
+Default action is to show emails from the selected contact." t)
+(autoload 'counsel-mu4e-and-bbdb-addresses-mu4e-send-mail-to-contact "counsel-mu4e-and-bbdb-addresses" "\
+Select a contact from mu4e or BBDB via counsel.
+
+Default action is to show emails from the selected contact." t)
+(autoload 'counsel-mu4e-and-bbdb-addresses-mu4e-select-email "counsel-mu4e-and-bbdb-addresses" "\
+Select a contact from mu4e or BBDB via counsel.
+
+Insert the email address." t)
+(autoload 'counsel-mu4e-and-bbdb-addresses-setup "counsel-mu4e-and-bbdb-addresses" "\
+Advice mu4e contacts.")
+(autoload 'counsel-mu4e-and-bbdb-addresses-remove "counsel-mu4e-and-bbdb-addresses" "\
+Advice mu4e contacts.")
+(register-definition-prefixes "counsel-mu4e-and-bbdb-addresses" '("counsel-mu4e-and-bbdb-addresses-" "mu4e-search-company-completion-contacts"))
 
 ;; Local Variables:
 ;; version-control: never
