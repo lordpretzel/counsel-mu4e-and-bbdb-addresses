@@ -175,9 +175,10 @@ If APPEND-COMMA / PREPEND-COMMA then append / prepend a comma.
 If this is the first email address in a to/cc/bcc field or there
 already is a comma then do not prepend."
   (interactive)
-  (let* ((points (bounds-of-thing-at-point 'symbol)))
-    (when points
-      (delete-region (car points) (cdr points))))
+  ;; TODO this seems wrong and is maybe causing the bug sometimes
+  ;; (let* ((points (bounds-of-thing-at-point 'symbol)))
+  ;;   (when points
+  ;;     (delete-region (car points) (cdr points))))
   ;; prepend "," if necessary
   (when prepend-comma
     (counsel-mu4e-and-bbdb-addresses-prepend-comma))
