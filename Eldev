@@ -15,7 +15,7 @@
 (add-to-list 'load-path "~/scripts/elisp/sorted-list/")
 (eldev-use-local-dependency "~/scripts/elisp/sorted-list/")
 
-(add-to-list 'load-path "/opt/homebrew/Cellar/mu/1.12.5/share/emacs/site-lisp/mu/mu4e/")
-(eldev-use-local-dependency "/opt/homebrew/Cellar/mu/1.12.5/share/emacs/site-lisp/mu/mu4e/")
+(add-to-list 'load-path "/opt/homebrew/Cellar/mu/1.12.8/share/emacs/site-lisp/mu/mu4e/")
+(eldev-use-local-dependency "/opt/homebrew/Cellar/mu/1.12.8/share/emacs/site-lisp/mu/mu4e/")
 
 (eldev-use-plugin 'autoloads)
