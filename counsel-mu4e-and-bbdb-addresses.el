@@ -263,17 +263,16 @@ will append comma after email."
     (when alias
       (counsel-mu4e-and-bbdb-addresses-prepend-comma)
       (dolist (r counsel-bbdb-contacts)
-        (let* ((r-alias (nth 4 (cdr r)))
+        (let* ((alias-list (nth 5 r))
+        ;; (let* ((r-alias (nth 4 (cdr r)))
                (name (nth 1 r)))
-          (when (and r-alias
-                     (string-match-p (format "%s\\(,\\| *$\\)" alias) r-alias))
-            (unless (member name names)
+          (when (and alias-list
+                     (member alias alias-list))
               (counsel-bbdb-insert-one-mail-address r t)
-              (push name names)
               (counsel-mu4e-and-bbdb-addresses--log "%s names" names)))))
       (goto-char (line-beginning-position))
       (re-search-forward ",[[:space:]]*$" (line-end-position))
-      (replace-match ""))))
+      (replace-match "")))
 
 (defun counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload ()
   "Load contacts from `bbdb-file'."
@@ -292,36 +291,9 @@ will append comma after email."
     (setq counsel-bbdb-contacts nil)
     (setq counsel-bbdb-mail-alias-list nil)
     (dolist (r raw-records)
-      (let* ((full-name (counsel-bbdb-full-name r))
-             (family-name (counsel-bbdb-family-name r))
-             (given-name (counsel-bbdb-given-name r))
-             (mails (counsel-bbdb-emails r))
-             (mail-alias (counsel-bbdb-mail-alias r))
-             (prefix full-name))
-
-        (when mail-alias
-          (let* ((strs (split-string mail-alias ", ")))
-            (dolist (s strs)
-              (add-to-list 'counsel-bbdb-mail-alias-list s))))
-
-        (when (= (length prefix) 0)
-          (setq prefix (concat family-name
-                               " "
-                               given-name)))
-        (if (= (length prefix) 1) (setq prefix ""))
-
-        (dolist (m mails)
-          (add-to-list 'counsel-bbdb-contacts
-                       (cons (concat prefix
-                                     ":"
-                                     m
-                                     (if mail-alias (format " => %s" mail-alias)))
-                             (list family-name
-                                   given-name
-                                   full-name
-                                   m
-                                   mail-alias))))
-        (setq counsel-bbdb-contacts (nreverse counsel-bbdb-contacts))))))
+      (let ((contacts (counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts r)))
+        (dolist (c contacts)
+          (push c counsel-bbdb-contacts))))))
 
 ;; extracting information from entries
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address (add)
@@ -413,24 +385,29 @@ BBDB contacts come first. Secondary we sort on name in increasing order."
         (na (plist-get (cdr a) :sort-name))
         (nb (plist-get (cdr b) :sort-name))
         (ea (plist-get (cdr a) :email))
-        (eb (plist-get (cdr a) :email)))
+        (eb (plist-get (cdr a) :email))
+        (pa (plist-get (cdr a) :is-primary))
+        (pb (plist-get (cdr b) :is-primary)))
     (or (string< ca cb)
+        (and pa (not pb))
         (and (string= ca cb)
+             (and pa pb)
              (string< na nb))
         (and (string= ca cb)
+             (and pa pb)
              (string= na nb)
              (string< ea eb)))))
 
 (defun counsel-mu4e-and-bbdb-addresses--contact-bbdb-less-p (a b)
   "Compare two BBDB contact A and B for sorting."
-  (or (string< (nth 5 a)
-               (nth 5 b))
-      (and (string= (nth 5 a)
-                    (nth 5 b))
+  ;; 2: name
+  ;; 4: email
+  ;; 5: mail alias (a string list)
+  (or (and (nth 5 a) (not (nth 5 b)))
+      (and (and (nth 5 a) (nth 5 b))
            (string< (nth 2 a)
                     (nth 2 b)))
-      (and (string= (nth 5 a)
-                    (nth 5 b))
+      (and (and (nth 5 a) (nth 5 b))
            (string= (nth 2 a)
                     (nth 2 b))
            (string< (nth 4 a)
@@ -439,12 +416,13 @@ BBDB contacts come first. Secondary we sort on name in increasing order."
 (defun counsel-mu4e-and-bbdb-addresses--extract-bbdb-contact (c)
   "Extract information from an BBDB contact C."
   (let* ((group (nth 5 c))
+         (isprimary (nth 6 c))
          (email (nth 4 c))
          (lastname (nth 1 c))
 		 (name (format "%s %s" (nth 2 c) (nth 1 c)))
          (sortname (if name (downcase name) email))
 		 (fullcontact (format "%s <%s>" name email))
-		 (contact `(:full-contact ,fullcontact :name ,name :email ,email :sort-name ,sortname :last-name ,lastname :contact-from "bbdb" :group ,group)))
+		 (contact `(:full-contact ,fullcontact :name ,name :email ,email :sort-name ,sortname :last-name ,lastname :contact-from "bbdb" :group ,group :is-primary ,isprimary)))
 	contact))
 
 (defun counsel-mu4e-and-bbdb-addresses--extract-mu4e-contact  (c)
@@ -452,7 +430,7 @@ BBDB contacts come first. Secondary we sort on name in increasing order."
   (let* ((email (counsel-mu4e-and-bbdb-addresses-mu4e-extract-email-from-address c))
 		 (name (counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact c))
          (sortname (if name (downcase name) email))
-		 (contact `(:full-contact ,c :name ,name :email ,email :sort-name ,sortname :contact-from "mu4e"  :group "MU4E")))
+		 (contact `(:full-contact ,c :name ,name :email ,email :sort-name ,sortname :contact-from "mu4e"  :group ("MU4E") :is-primary nil)))
                           contact))
 
 (defun counsel-mu4e-and-bbdb-addresses--transform-to-bbdb (c)
@@ -460,11 +438,13 @@ BBDB contacts come first. Secondary we sort on name in increasing order."
   (let* ((name (plist-get c :name))
          (email (plist-get c :email))
          (group (plist-get c :group))
+         (groupstr (mapconcat 'identity group " "))
+         (isprimary (plist-get c :is-primary))
          (fullcontact (format "%s:%s => %s"
                               name
                               email
-                              group)))
-    `(,fullcontact ,name nil nil ,email ,group)))
+                              groupstr)))
+    `(,fullcontact ,name nil nil ,email ,group ,isprimary)))
 
 (defun counsel-mu4e-and-bbdb-addresses--transform-to-mu4e (c)
   "Transform out contact format C to mu4e."
@@ -495,6 +475,7 @@ FORCE is non-nil, then regenerate the views from scratch."
                counsel-mu4e-and-bbdb-addresses--counsel-bbdb-mv
                (not force))
     (counsel-mu4e-and-bbdb-addresses--log "FETCH CONTACTS AND MATERIALIZE AS VIEWS: %s" (current-time-string))
+    (counsel-mu4e-and-bbdb-addresses-counsel-bbdb-reload)
     (let ((allcontacts (idf-union
             ;; create bbdb contacts
             (->
@@ -622,17 +603,33 @@ These hooks trigger when BBDB or mu4e contacts change."
 
 (defun counsel-mu4e-and-bbdb-addresses-bbdb-record-to-contacts (r)
   "Take bbdb record R and turn it into our contact format."
-  (let ((firstname (aref r 1))
-        (lastname (aref r 0))
-        (emails (aref r 7))
-        (mailaliases (alist-get 'mail-alias (aref r 8))))
-    (--map (let ((full-contact (format "%s%s:%s => %s"
-                                       (or firstname "")
-                                       (or lastname "")
-                                       it
-                                       (or mailaliases "BBDB"))))
-             `(,full-contact ,lastname ,firstname nil ,it ,mailaliases))
-           emails)))
+  (let* ((full-name (counsel-bbdb-full-name r))
+         (family-name (counsel-bbdb-family-name r))
+         (given-name (counsel-bbdb-given-name r))
+         (emails (counsel-bbdb-emails r))
+         (mail-alias (counsel-bbdb-mail-alias r))
+         (primary-email (bbdb-record-field r 'primary-email))
+         (prefix full-name)
+         aliaslist)
+
+    (when mail-alias
+      (setq aliaslist (split-string mail-alias ", "))
+      (dolist (s aliaslist)
+        (add-to-list 'counsel-bbdb-mail-alias-list s)))
+
+    (when (= (length prefix) 0)
+      (setq prefix (concat given-name
+                           " "
+                           family-name)))
+    (if (= (length prefix) 1) (setq prefix ""))
+
+    (--map (let* ((is-primary (string-equal it primary-email))
+                  (full-contact (format "%s:%s => %s"
+                                        prefix
+                                        it
+                                        (if (and is-primary mail-alias) (format " => %s" mail-alias) " => Address Book"))))
+           `(,full-contact ,family-name ,given-name nil ,it ,(if (and mail-alias is-primary) aliaslist '("Address Book")) ,is-primary))
+    emails)))
 
 (defun counsel-mu4e-and-bbdb-addresses-bbdb-create-hook (changedr)
   "Cache a newly created BBDB record CHANGEDR."
@@ -643,7 +640,7 @@ These hooks trigger when BBDB or mu4e contacts change."
 (defun counsel-mu4e-and-bbdb-addresses-bbdb-changed-hook (changedr)
   "Run this hook when BBDB record CHANGEDR changed.
 
-These hook incrementally maintain our views."
+This hook incrementally maintains our views."
   (let ((ins nil)
         (del nil))
     (if counsel-mu4e-and-bbdb-addresses-bbdb-new-contact-cache
