@@ -354,7 +354,7 @@ email address."
       emailcheck)))
 
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-is-org-from-address (add)
-  "Return * if ADD ends in # (an org-contact contact) and space otherwise."
+  "Return * if ADD ends in # (an bbdb contact) and space otherwise."
   (if (string-match "[#]$" add)
 	  "*"
 	"-"))
