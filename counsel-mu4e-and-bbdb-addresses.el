@@ -309,6 +309,10 @@ ADD may use one of two formats: 'email' or 'name <email>'."
   "Get email from contact ADD in ivy-completion."
   (plist-get (cdr add) :email))
 
+(defun counsel-mu4e-and-bbdb-addresses--get-name (add)
+  "Get name from contact ADD in ivy-completion."
+  (plist-get (cdr add) :name))
+
 (defun counsel-mu4e-and-bbdb-addresses-mu4e-extract-name-from-contact (add)
   "Extract name from a mu4e-contact ADD.
 
@@ -689,24 +693,11 @@ Default action is to show emails from the selected contact."
   (ivy-read "Contact:"
 			(counsel-mu4e-and-bbdb-addresses-get-sorted-contacts)
 			:history 'counsel-mu4e-and-bbdb-addresses-mu4e-contacts-history
+            :require-match t
 			:action '(1
 					  ("a" (lambda (add)
 							 (mu4e-headers-search (counsel-mu4e-and-bbdb-addresses-mu4e-get-all-emails-from-person add)))
 					   "show all emails from all email addresses for this person")
-					  ("i" (lambda (add)
-							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" (car add))))
-							   (insert nohash)))
-                       "insert")
-					  ("w" (lambda (add)
-							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" (car add))))
-							   (kill-new nohash)))
-                       "copy to killring")
-					  ("I" (lambda (add)
-							 (insert (counsel-mu4e-and-bbdb-addresses--get-email add)))
-                       "insert email address only")
-					  ("W" (lambda (add)
-							 (kill-new (counsel-mu4e-and-bbdb-addresses--get-email add)))
-                       "copy to email address only to killring")
 					  ("l" (lambda (add)
 							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add))
 								    (query (concat "from:" email " OR " "to:" email)))
@@ -722,6 +713,26 @@ Default action is to show emails from the selected contact."
 							   (mu4e~compose-mail email))
 							 (mu4e-headers-search query))
 					   "send an email to person")
+					  ("i" (lambda (add)
+							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" (car add))))
+							   (insert nohash)))
+                       "insert")
+					  ("w" (lambda (add)
+							 (let ((nohash (replace-regexp-in-string "[ ]*#" "" (car add))))
+							   (kill-new nohash)))
+                       "copy to killring")
+					  ("I" (lambda (add)
+							 (insert (counsel-mu4e-and-bbdb-addresses--get-email add)))
+                       "insert email address only")
+					  ("W" (lambda (add)
+							 (kill-new (counsel-mu4e-and-bbdb-addresses--get-email add)))
+                       "copy to email address only to killring")
+					  ("n" (lambda (add)
+							 (kill-new (counsel-mu4e-and-bbdb-addresses--get-name add)))
+                       "copy to name only to killring")
+					  ("N" (lambda (add)
+							 (insert (counsel-mu4e-and-bbdb-addresses--get-name add)))
+                       "insert name only")
 					  ("b" (lambda (add)
 							 (let* ((email (counsel-mu4e-and-bbdb-addresses--get-email add)))
 							   ;; 4th entry is the email address (counsel-bbdb format)
@@ -758,6 +769,7 @@ Insert the email address."
                           (setq myemail email)))
 			  :caller 'counsel-mu4e-and-bbdb-addresses-mu4e-send-mail-to-contact)
     myemail))
+
 
 
 ;;;###autoload
